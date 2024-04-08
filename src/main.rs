@@ -3,7 +3,8 @@ use bytes::Bytes;
 use clap::Parser;
 use reqwest::{blocking::Client, Url};
 use std::{
-    io::{BufRead, BufWriter, Write},
+    fs::File,
+    io::{BufRead, BufReader, BufWriter, Write},
     path::PathBuf,
     time::{Duration, Instant},
 };
@@ -22,22 +23,24 @@ fn main() -> anyhow::Result<()> {
 
     tracing_subscriber::fmt().with_writer(std::io::stderr).init();
 
-    let mut builder = Client::builder().tcp_nodelay(true);
+    let client = {
+        let mut builder = Client::builder().tcp_nodelay(true);
 
-    if let Some(timeout_secs) = timeout_secs {
-        builder = builder.timeout(Duration::from_secs(timeout_secs));
-    }
+        if let Some(timeout_secs) = timeout_secs {
+            builder = builder.timeout(Duration::from_secs(timeout_secs));
+        }
 
-    let client = builder.build().unwrap();
+        builder.build().unwrap()
+    };
 
-    let mut f =
-        std::io::BufReader::new(std::fs::File::open(update_query_file).context("Unable to open query file")?).lines();
+    let input = BufReader::new(File::open(update_query_file).context("Unable to open query file")?);
+    let mut output = BufWriter::new(std::io::stdout().lock());
 
-    let mut stdout = BufWriter::new(std::io::stdout().lock());
-    writeln!(stdout, "query_id,runtime_secs").context("Unable to write to stdout")?;
+    writeln!(output, "query_id,runtime_secs").context("Unable to write to stdout")?;
 
-    let mut id = 0;
-    while let Some(Ok(query)) = f.next() {
+    for (id, query) in input.lines().enumerate() {
+        let query = query.context("Unable to read from query file")?;
+
         let start_time = Instant::now();
 
         match run_query(&client, &endpoint, query) {
@@ -47,15 +50,13 @@ fn main() -> anyhow::Result<()> {
                 let end_time = Instant::now();
                 let runtime_secs = end_time.duration_since(start_time).as_secs_f64();
 
-                writeln!(stdout, "{id},{runtime_secs}").context("Unable to write to stdout")?;
+                writeln!(output, "{id},{runtime_secs}").context("Unable to write to stdout")?;
             },
             Err(e) => {
                 tracing::warn!("HTTP request failed: {e:#?}");
-                writeln!(stdout, "{id},{}", f64::INFINITY).context("Unable to write to stdout")?;
+                writeln!(output, "{id},{}", f64::INFINITY).context("Unable to write to stdout")?;
             },
         }
-
-        id += 1;
     }
 
     Ok(())

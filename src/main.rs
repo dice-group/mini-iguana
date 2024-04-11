@@ -116,7 +116,7 @@ fn run_query(client: &Client, endpoint: &Url, query: String) -> anyhow::Result<(
     client
         .get(endpoint.clone())
         .header("Content-Type", "application/sparql-query")
-        .body(query)
+        .query(&[("query", query)])
         .send()
         .context("Error sending HTTP request")?
         .error_for_status()

@@ -38,6 +38,8 @@ fn main() -> anyhow::Result<()> {
 
         if let Some(timeout_secs) = timeout_secs {
             builder = builder.timeout(Duration::from_secs(timeout_secs));
+        } else {
+            builder = builder.timeout(None);
         }
 
         builder.build().unwrap()
@@ -93,7 +95,7 @@ fn update(client: Client, endpoint: Url, input: impl BufRead) -> anyhow::Result<
                 serialize_field(&mut output_buf, &mut output, f64::INFINITY)?;
                 alt_serialize_field(&mut output_buf, &mut output, e)?;
                 output.write_record(None::<&[u8]>)?;
-            },
+            }
         }
     }
 

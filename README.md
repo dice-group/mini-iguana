@@ -3,9 +3,9 @@
 ## Install Rust
 See https://rustup.rs/
 
-## Build
+## Install
 ```
-cargo build --release
+cargo install --git https://github.com/dice-group/mini-iguana
 ```
 
 ## Run (Example)

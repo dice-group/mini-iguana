@@ -18,6 +18,9 @@ struct Opts {
     #[clap(long)]
     timeout_secs: Option<u64>,
 
+    #[clap(long)]
+    qlever_access_token: Option<String>,
+
     #[clap(subcommand)]
     mode: Mode,
 }
@@ -29,7 +32,7 @@ enum Mode {
 }
 
 fn main() -> anyhow::Result<()> {
-    let Opts { endpoint, query_file, timeout_secs, mode } = Opts::parse();
+    let Opts { endpoint, query_file, timeout_secs, qlever_access_token, mode } = Opts::parse();
 
     tracing_subscriber::fmt().with_writer(std::io::stderr).init();
 
@@ -49,7 +52,7 @@ fn main() -> anyhow::Result<()> {
 
     match mode {
         Mode::Warmup => warmup(client, endpoint, input),
-        Mode::Update => update(client, endpoint, input),
+        Mode::Update => update(client, endpoint, input, qlever_access_token),
     }
 }
 
@@ -65,13 +68,17 @@ fn warmup(client: Client, endpoint: Url, input: impl BufRead) -> anyhow::Result<
     Ok(())
 }
 
-fn update(client: Client, endpoint: Url, input: impl BufRead) -> anyhow::Result<()> {
+fn update(client: Client, mut endpoint: Url, input: impl BufRead, access_token: Option<String>) -> anyhow::Result<()> {
     let mut output = csv::Writer::from_writer(io::stdout().lock());
     let mut output_buf = Vec::new();
 
     output
         .write_record(&["query_id", "runtime_secs", "error"])
         .context("Unable to write to stdout")?;
+
+    if let Some(token) = access_token {
+        endpoint.query_pairs_mut().append_pair("access-token", &token);
+    }
 
     for (id, query) in input.lines().enumerate() {
         let query = query.context("Unable to read from query file")?;
